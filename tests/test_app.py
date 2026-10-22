@@ -10,77 +10,113 @@ def client():
         name: list(activity["participants"])
         for name, activity in app_module.activities.items()
     }
-    with TestClient(app_module.app) as test_client:
-        yield test_client
-    for name, participants in original_participants.items():
-        app_module.activities[name]["participants"][:] = participants
+    try:
+        with TestClient(app_module.app) as test_client:
+            yield test_client
+    finally:
+        for name, participants in original_participants.items():
+            app_module.activities[name]["participants"][:] = participants
 
 
 def test_get_activities_returns_activity_details_and_participants(client):
-    response = client.get("/activities")
+    # Arrange
+    activity_name = "Chess Club"
 
-    assert response.status_code == 200
+    # Act
+    response = client.get("/activities")
     activities = response.json()
-    assert "Chess Club" in activities
-    assert activities["Chess Club"]["participants"] == [
+
+    # Assert
+    assert response.status_code == 200
+    assert activity_name in activities
+    assert activities[activity_name]["participants"] == [
         "michael@mergington.edu",
         "daniel@mergington.edu",
     ]
-    assert activities["Chess Club"]["max_participants"] == 12
+    assert activities[activity_name]["max_participants"] == 12
 
 
 def test_signup_adds_participant_to_activity(client):
+    # Arrange
+    activity_name = "Chess Club"
     email = "new-student@mergington.edu"
 
+    # Act
+    response = client.post(
+        "/activities/Chess%20Club/signup",
+        params={"email": email},
+    )
+    activities_response = client.get("/activities")
+    activities = activities_response.json()
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json() == {"message": f"Signed up {email} for {activity_name}"}
+    assert activities_response.status_code == 200
+    assert email in activities[activity_name]["participants"]
+
+
+def test_signup_rejects_duplicate_participant(client):
+    # Arrange
+    email = "michael@mergington.edu"
+
+    # Act
     response = client.post(
         "/activities/Chess%20Club/signup",
         params={"email": email},
     )
 
-    assert response.status_code == 200
-    assert response.json() == {"message": f"Signed up {email} for Chess Club"}
-    assert email in client.get("/activities").json()["Chess Club"]["participants"]
-
-
-def test_signup_rejects_duplicate_participant(client):
-    response = client.post(
-        "/activities/Chess%20Club/signup",
-        params={"email": "michael@mergington.edu"},
-    )
-
+    # Assert
     assert response.status_code == 400
     assert response.json() == {"detail": "Student already signed up for this activity"}
 
 
 def test_signup_rejects_unknown_activity(client):
+    # Arrange
+    email = "new-student@mergington.edu"
+
+    # Act
     response = client.post(
         "/activities/Unknown%20Activity/signup",
-        params={"email": "new-student@mergington.edu"},
+        params={"email": email},
     )
 
+    # Assert
     assert response.status_code == 404
     assert response.json() == {"detail": "Activity not found"}
 
 
 def test_unregister_removes_participant_from_activity(client):
+    # Arrange
+    activity_name = "Chess Club"
     email = "michael@mergington.edu"
 
+    # Act
+    response = client.delete(
+        "/activities/Chess%20Club/signup",
+        params={"email": email},
+    )
+    activities_response = client.get("/activities")
+    activities = activities_response.json()
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json() == {"message": f"Unregistered {email} from {activity_name}"}
+    assert activities_response.status_code == 200
+    assert email not in activities[activity_name]["participants"]
+
+
+def test_unregister_rejects_unregistered_participant(client):
+    # Arrange
+    email = "not-signed-up@mergington.edu"
+
+    # Act
     response = client.delete(
         "/activities/Chess%20Club/signup",
         params={"email": email},
     )
 
-    assert response.status_code == 200
-    assert response.json() == {"message": f"Unregistered {email} from Chess Club"}
-    assert email not in client.get("/activities").json()["Chess Club"]["participants"]
-
-
-def test_unregister_rejects_unregistered_participant(client):
-    response = client.delete(
-        "/activities/Chess%20Club/signup",
-        params={"email": "not-signed-up@mergington.edu"},
-    )
-
+    # Assert
     assert response.status_code == 404
     assert response.json() == {
         "detail": "Student is not signed up for this activity"
@@ -88,10 +124,15 @@ def test_unregister_rejects_unregistered_participant(client):
 
 
 def test_unregister_rejects_unknown_activity(client):
+    # Arrange
+    email = "student@mergington.edu"
+
+    # Act
     response = client.delete(
         "/activities/Unknown%20Activity/signup",
-        params={"email": "student@mergington.edu"},
+        params={"email": email},
     )
 
+    # Assert
     assert response.status_code == 404
     assert response.json() == {"detail": "Activity not found"}

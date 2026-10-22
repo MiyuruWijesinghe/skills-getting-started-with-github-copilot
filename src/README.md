@@ -51,9 +51,9 @@ All data is stored in memory, which means data will be reset when the server res
 
 ## Running Tests
 
-Install the development dependencies and run the backend API tests from the repository root:
+Install the project dependencies and run the backend API tests from the repository root:
 
 ```bash
-python -m pip install -r requirements-dev.txt
+python -m pip install -r requirements.txt
 python -m pytest
 ```
